@@ -26,7 +26,7 @@ const Slider = ({
           {(name === "Hue" && "°") || (name === "Blur" && "px") || "%"}
         </p>
         <input
-          className="w-[full] appearance-none cursor-pointer ml-1 h-1 bg-teal-400 oultine-none rounded-md slider-thumb"
+          className="w-[full] flex flex-grow appearance-none cursor-pointer ml-1 h-1 bg-teal-400 oultine-none rounded-md slider-thumb"
           type="range"
           min={min}
           max={max}

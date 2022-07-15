@@ -6,12 +6,12 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadString } from "firebase/storage";
-import { useRef, useState } from "react";
-import "./App.css";
+import { useRef, useState, useCallback, useEffect } from "react";
 import Footer from "./components/Footer";
 import Header from "./components/Header";
 import Slider from "./components/Slider";
 import { db, storage } from "./firebase";
+import { toPng } from "html-to-image";
 
 const DEFAULT_OPTIONS = [
   {
@@ -101,11 +101,9 @@ function App() {
   const [selectedOptionIndex, setSelectedOptionIndex] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
   const [uploadImage, setUploadImage] = useState(null);
+  const [editedImage, setEditedImage] = useState(null);
   const filePickerRef = useRef();
-
-  const dummyImage =
-    "https://images.unsplash.com/photo-1553440569-bcc63803a83d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1650&q=80";
-  // const selectedOption = options[selectedOptionIndex];
+  const refImg = useRef(HTMLDivElement);
 
   const handleSliderChange = (e) => {
     setOptions((prevOptions) => {
@@ -145,12 +143,10 @@ function App() {
 
     console.log("New Doc added with ID", docRef.id);
 
-    const imageRef = ref(storage, `images/${docRef.id}`);
-
-    await uploadString(imageRef, imageUrl, "data_url").then(
+    const imageRefInStorage = ref(storage, `images/${docRef.id}`);
+    await uploadString(imageRefInStorage, editedImage, "data_url").then(
       async (snapshot) => {
-        console.log(snapshot);
-        const downloadURL = await getDownloadURL(imageRef);
+        const downloadURL = await getDownloadURL(imageRefInStorage);
         await updateDoc(doc(db, "images", docRef.id), {
           image: downloadURL,
         });
@@ -172,8 +168,34 @@ function App() {
     };
   }
 
+  useEffect(() => {
+    const img = new Image();
+    setUploadImage(imageUrl);
+    img.src = uploadImage;
+    img.onload = () => {};
+  }, [imageUrl, uploadImage]);
+
+  const donwloadEditImage = useCallback(() => {
+    if (refImg.current === null) {
+      return;
+    }
+
+    toPng(refImg.current, { cacheBust: true })
+      .then((dataUrl) => {
+        setEditedImage(dataUrl);
+        const link = document.createElement("a");
+        link.download = "image.png";
+        link.href = dataUrl;
+        link.click();
+        if (editedImage) handleUpload();
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  }, [refImg, editedImage, handleUpload]);
+
   return (
-    <div className=" w-[100vw] h-[100vh] bg-white">
+    <>
       <Header />
       <h2 className="text-md text-gray-700 text-center p-5">
         Click to select the effect and drag the slider sideways to adjust the
@@ -197,15 +219,12 @@ function App() {
         </div>
         {/* right */}
         <div className="p-2 h-[500px] relative">
-          {/* <h1 className="text-center tracking-wide animate-pulse ">
-          UPLOAD/EDIT your picture.
-        </h1> */}
           {!uploadImage ? (
-            <div className="flex flex-col items-center justify-between absolute h-[150px] w-[300px] shadow-xl rounded-lg bg-teal-400  top-[40%] p-5 text-white">
-              <h4
-                onClick={() => filePickerRef.current.click()}
-                className="text-center animate-pulse cursor-pointer font-bold"
-              >
+            <div
+              onClick={() => filePickerRef.current.click()}
+              className="flex flex-col items-center justify-between absolute h-[150px] w-[300px] shadow-xl rounded-lg bg-teal-400  top-[40%] p-5 text-white"
+            >
+              <h4 className="text-center animate-pulse cursor-pointer font-bold">
                 Click me to <b>SELECT</b> image you want to edit.
               </h4>
               <input
@@ -215,18 +234,10 @@ function App() {
                 accept=".jpeg, .jpg, .png"
                 onChange={(e) => addImageToEdit(e)}
               />
-
-              {imageUrl && (
-                <button
-                  className="bg-teal-600 py-1 px-5 rounded-md"
-                  onClick={handleUpload}
-                >
-                  UPLOAD
-                </button>
-              )}
             </div>
           ) : (
             <div
+              ref={refImg}
               style={{
                 ...getImageStyle(),
                 backgroundImage: `url('${uploadImage}')`,
@@ -238,14 +249,17 @@ function App() {
           )}
 
           {uploadImage && (
-            <button className="bg-teal-500 text-white py-2 px-3 z-50  absolute top-2 left-2">
+            <button
+              onClick={donwloadEditImage}
+              className="bg-teal-500 text-white py-2 px-3 z-50  absolute top-2 left-2"
+            >
               Download Image
             </button>
           )}
         </div>
         <Footer />
       </div>
-    </div>
+    </>
   );
 }
 
